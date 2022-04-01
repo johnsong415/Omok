@@ -5,4 +5,12 @@ A single player abstract strategy game with AI where the winner is the first pla
 
 ![Rule of Three](/Screenshots/Omok.RuleOfThree.png)
 
-![White Win](/Screenshots/Omok.WhiteWin.png)
+![White Wins](/Screenshots/Omok.WhiteWin.png)
+
+![PvP: Starting Server](/Screenshots/Omok.Start.Server.png)
+
+![PvP: Connecting to Server](/Screenshots/Omok.Connect.To.Server.png)
+
+![PvP: Player 1](/Screenshots/Omok.PvP1.png)
+
+![PvP: Player 2](/Screenshots/Omok.PvP2.png)

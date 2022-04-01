@@ -4,8 +4,14 @@
 #include "framework.h"
 #include "Omok.h"
 #include "Game.h"
+#include "Messaging.h"
+#include "Network.h"
+
+#include <Commctrl.h>
+
 
 #define MAX_LOADSTRING 100
+
 
 // Global Variables:
 HINSTANCE hInst;                                // current instance
@@ -13,6 +19,17 @@ WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 HWND hWnd;                                      // Handle to window
 Game game;                                      // Game class
+
+
+void OnCommand(HWND hWnd, WPARAM wParam, LPARAM lParam);
+void OnKeyDown(WPARAM wParam, LPARAM lParam);
+void OpenServerAddressDialogBox(HWND hOwnerWindow);
+
+void OnStartServer();
+void OnConnectToServer(DWORD ipAddress);
+
+
+
 
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -43,21 +60,29 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
     HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_OMOK));
 
-    MSG msg;
+    Messaging::Initialize();
 
-    // Main message loop:
     game.Initialize(hWnd, GetDC(hWnd));
 
-    while (GetMessage(&msg, nullptr, 0, 0))
+    MSG msg;
+    while (true)
     {
-        if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
-        {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
+        if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE)) {
+            if (msg.message == WM_DESTROY || msg.message == WM_QUIT) {
+                break;
+            }
+
+            if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
+            {
+                TranslateMessage(&msg);
+                DispatchMessage(&msg);
+            }
         }
+
+        Network::NetworkUpdate();
     }
 
-    return (int) msg.wParam;
+    return 0;
 }
 
 
@@ -136,33 +161,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         break;
 
     case WM_KEYDOWN:
-        switch (wParam)
-        {
-        case 0x42: // B key
-            game.Undo();
-            break;
-        case 0x52: // R key
-            game.Restart();
-            break;
-        }
+        OnKeyDown(wParam, lParam);
         break;
+
     case WM_COMMAND:
-        {
-            int wmId = LOWORD(wParam);
-            // Parse the menu selections:
-            switch (wmId)
-            {
-            case IDM_ABOUT:
-                DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
-                break;
-            case IDM_EXIT:
-                DestroyWindow(hWnd);
-                break;
-            default:
-                return DefWindowProc(hWnd, message, wParam, lParam);
-            }
-        }
-        break;
+        OnCommand(hWnd, wParam, lParam);
+        return DefWindowProc(hWnd, message, wParam, lParam);
+
     case WM_PAINT:
         {
             PAINTSTRUCT ps;
@@ -171,12 +176,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             EndPaint(hWnd, &ps);
         }
         break;
+
     case WM_DESTROY:
         PostQuitMessage(0);
         break;
+
     default:
         return DefWindowProc(hWnd, message, wParam, lParam);
     }
+
     return 0;
 }
 
@@ -198,4 +206,101 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
         break;
     }
     return (INT_PTR)FALSE;
+}
+
+void OnCommand(HWND hWnd, WPARAM wParam, LPARAM lParam)
+{
+    int wmId = LOWORD(wParam);
+
+    // Parse the menu selections:
+    switch (wmId)
+    {
+    case IDM_ABOUT:
+        DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
+        break;
+
+    case IDM_PVE_TRUE:
+        game.InitPVE();
+        break;
+
+    case IDM_EXIT:
+        DestroyWindow(hWnd);
+        break;
+
+    case IDM_FILE_STARTSERVER:
+        OnStartServer();
+        break;
+
+    case IDM_FILE_CONNECTTOSERVER:
+        OpenServerAddressDialogBox(hWnd);
+        break;
+    }
+}
+
+void OnKeyDown(WPARAM wParam, LPARAM lParam)
+{
+    switch (wParam)
+    {
+    case 'B':
+    case 'b':
+        game.Undo();
+        break;
+    case 'R':
+    case 'r':
+        game.Restart();
+        break;
+    }
+}
+
+void OpenServerAddressDialogBox(HWND hOwnerWindow)
+{
+    DialogBox(
+        hInst,
+        MAKEINTRESOURCE(IDD_SERVER_ADDRESS),
+        hOwnerWindow,
+        [](HWND hDialog, UINT message, WPARAM wParam, LPARAM lParam) -> INT_PTR {
+            switch (message) {
+            case WM_INITDIALOG:
+                return (INT_PTR) TRUE;
+
+            case WM_COMMAND:
+                if (LOWORD(wParam) == IDCANCEL) {
+                    EndDialog(hDialog, LOWORD(wParam));
+                    return (INT_PTR) TRUE;
+                }
+
+                if (LOWORD(wParam) == IDOK) {
+                    DWORD ipAddress = 0;
+                    SendDlgItemMessage(hDialog, IDC_SERVER_ADDRESS, IPM_GETADDRESS, 0, (LPARAM) &ipAddress);
+                    EndDialog(hDialog, LOWORD(wParam));
+                    OnConnectToServer(ipAddress);
+                    return (INT_PTR) TRUE;
+                }
+                break;
+            }
+
+            return (INT_PTR) FALSE;
+        });
+}
+
+void OnStartServer()
+{
+    bool started = Network::StartServer();
+    if (!started) {
+        MessageBox(hWnd, L"Failed to start server!", L"Error", MB_ICONEXCLAMATION | MB_OK);
+        return;
+    }
+
+    game.InitServer();
+}
+
+void OnConnectToServer(DWORD ipAddress)
+{
+    bool connected = Network::ConnectToServer(ipAddress);
+    if (!connected) {
+        MessageBox(hWnd, L"Failed to connect to server!", L"Error", MB_ICONEXCLAMATION | MB_OK);
+        return;
+    }
+
+    game.InitClient();
 }

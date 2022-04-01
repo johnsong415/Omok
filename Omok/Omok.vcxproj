@@ -141,21 +141,26 @@
   <ItemGroup>
     <ClInclude Include="Array.h" />
     <ClInclude Include="Board.h" />
+    <ClInclude Include="Messaging.h" />
     <ClInclude Include="Computer.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="Game.h" />
     <ClInclude Include="MoveList.h" />
+    <ClInclude Include="Network.h" />
     <ClInclude Include="Omok.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="Square.h" />
     <ClInclude Include="targetver.h" />
+    <ClInclude Include="Types.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Array.cpp" />
     <ClCompile Include="Board.cpp" />
+    <ClCompile Include="Messaging.cpp" />
     <ClCompile Include="Computer.cpp" />
     <ClCompile Include="Game.cpp" />
     <ClCompile Include="MoveList.cpp" />
+    <ClCompile Include="Network.cpp" />
     <ClCompile Include="Omok.cpp" />
     <ClCompile Include="Square.cpp" />
   </ItemGroup>

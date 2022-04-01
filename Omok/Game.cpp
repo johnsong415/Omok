@@ -10,10 +10,42 @@ Game::~Game()
 
 void Game::Initialize(HWND hWnd, HDC hDC)
 {
-    m_board.Initialize(hWnd, hDC, SQUARELENGTH);
+    m_board.Initialize(hWnd, hDC, SQUARELENGTH, &m_myTurn, &m_gameMode, &m_wins, &m_losses);
     m_computer.Initialize(&m_board);
     Update();
-    m_computer.MakeMove();
+}
+
+void Game::InitServer()
+{
+    m_gameMode = PVP;
+    m_player = SERVER;
+    m_myTurn = false;
+    m_color = Square::WHITE;
+
+    RegisterHandlers();
+}
+
+void Game::InitClient()
+{
+    m_gameMode = PVP;
+    m_player = CLIENT;
+    m_myTurn = true;
+    m_color = Square::BLACK;
+
+    RegisterHandlers();
+}
+
+void Game::RegisterHandlers()
+{
+    Messaging::RegisterMovePacketHandler([this](int x, int y) { OnMoveReceived(x, y); });
+}
+
+void Game::InitPVE()
+{
+    m_gameMode = PVE;
+    m_myTurn = true;
+    Restart();
+    m_color = Square::WHITE;
 }
 
 void Game::Update()
@@ -23,26 +55,28 @@ void Game::Update()
 
 void Game::TranslateClick(POINTS point)
 {
-    if (m_gameOver) { return; }
+    if (m_gameOver || !m_myTurn) { return; }
     int yIndex = RoundFloatToInt(((double) point.x) / SQUARELENGTH);
     int xIndex = RoundFloatToInt(((double) point.y) / SQUARELENGTH);
     if (xIndex > 19 || yIndex > 19) { return; }
-    bool ret = m_board.UpdateSquare(xIndex - 1, yIndex - 1, Square::WHITE);
-    if (!ret) {
+    if (!m_board.UpdateSquare(xIndex - 1, yIndex - 1, m_color)) {
         return;
     }
-    ret = CheckGameOver();
-    if (ret) {
-        m_gameOver = true;
-        return;
+    
+    Update();
+    
+    if (m_gameMode == PVE) {
+        if (CheckGameOver()) {
+            return;
+        }
+        m_computer.MakeMove();
+        Update();
     }
-    Update();
-    m_computer.MakeMove();
-    Update();
-    ret = CheckGameOver();
-    if (ret) {
-        m_gameOver = true;
-        return;
+    else if (m_gameMode == PVP) {
+        Messaging::SendMove(xIndex - 1, yIndex - 1);
+        CheckGameOver();
+        m_myTurn = false;
+        Update();
     }
 }
 
@@ -63,6 +97,12 @@ bool Game::CheckGameOver()
 
     if (winner != Square::EMPTY) {
         m_board.WinMessage(winner);
+        m_gameOver = true;
+        if (winner == m_color) { ++m_wins; }
+        if (winner != m_color) { ++m_losses; }
+        if (m_gameMode == PVP && m_player == CLIENT) {
+            Messaging::CloseClientSocket();
+        }
         return true;
     }
     return false;
@@ -70,6 +110,8 @@ bool Game::CheckGameOver()
 
 void Game::Undo()
 {
+    if (m_gameMode != PVE) { return; }
+    
     bool ret = m_board.Undo();
     if (ret) {
         m_computer.MakeMove();
@@ -78,7 +120,26 @@ void Game::Undo()
 
 void Game::Restart()
 {
+    if (m_gameMode != PVE) { return; }
+
     m_board.ResetBoard();
     m_gameOver = false;
     m_computer.MakeMove();
+}
+
+void Game::OnMoveReceived(int x, int y)
+{
+    if (x < 0 || y < 0 || x > 19 || y > 19 || m_myTurn) {
+        return; // bad request
+    }
+
+    if (m_player == SERVER) {
+        m_board.UpdateSquare(x, y, Square::BLACK);
+    }
+    else if (m_player == CLIENT) {
+        m_board.UpdateSquare(x, y, Square::WHITE);
+    }
+    CheckGameOver();
+    m_myTurn = true;
+    Update();
 }

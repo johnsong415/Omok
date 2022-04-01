@@ -1,6 +1,10 @@
 #include "Board.h"
 
 
+#include <string>
+
+
+
 Board::Board()
 {
 }
@@ -10,12 +14,16 @@ Board::~Board()
     DeleteObject(m_brush);
 }
 
-void Board::Initialize(HWND hWnd, HDC hDC, int squareLen)
+void Board::Initialize(HWND hWnd, HDC hDC, int squareLen, bool* myTurn, GameMode* gameMode, int* wins, int* losses)
 {
     m_hWnd = hWnd;
     m_hDC = hDC;
     m_squareLen = squareLen;
     HBRUSH m_brush = CreateSolidBrush(RGB(187, 170, 64));
+    m_myTurn = myTurn;
+    m_gameMode = gameMode;
+    m_wins = wins;
+    m_losses = losses;
 }
 
 
@@ -51,6 +59,33 @@ void Board::Paint()
                 m_board[row][column].Paint(m_hDC, x, y, (m_squareLen * 4 / 5) / 2, false);
             }
         }
+    }
+
+    SetBkColor(m_hDC, RGB(187, 170, 64));
+    // print how many wins & losses
+    SetTextColor(m_hDC, RGB(0, 0, 0));
+    TextOut(m_hDC, 0, 20, L"Wins:", 5);
+    std::wstring wins = std::to_wstring(*m_wins);
+    TextOut(m_hDC, 50, 20, &(wins[0]), (int) wins.length());
+    
+    TextOut(m_hDC, 80, 20, L"Losses:", 7);
+    std::wstring losses = std::to_wstring(*m_losses);
+    TextOut(m_hDC, 150, 20, &(losses[0]), (int) losses.length());
+
+
+    // add stuff about my turn or not
+    if (*m_gameMode == IDLE) {
+        SetTextColor(m_hDC, RGB(204, 0, 0));
+        TextOut(m_hDC, 0, 0, L"Choose a game mode", 18);
+        return;
+    }
+    if (*m_myTurn) {
+        SetTextColor(m_hDC, RGB(0, 204, 0));
+        TextOut(m_hDC, 0, 0, L"Your turn", 9);
+    }
+    else {
+        SetTextColor(m_hDC, RGB(204, 0, 0));
+        TextOut(m_hDC, 0, 0, L"Wait for your turn", 18);
     }
 }
 
